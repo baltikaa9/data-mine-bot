@@ -59,7 +59,7 @@ async def select_method_no_clusters(callback: types.CallbackQuery, state: FSMCon
 @router.message(ClusteringState.waiting_for_clusters, F.text)
 async def handle_clusters_input(message: Message, state: FSMContext):
     if not message.text.isdigit():
-        await message.reply('❌ Введи ЧИСЛО, кретин!')
+        await message.reply('❌ Введите ЧИСЛО!')
         return
 
     clusters = int(message.text)
