@@ -1,12 +1,11 @@
 from io import BytesIO
-from weakref import finalize
 
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator
-from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans, DBSCAN, AgglomerativeClustering, MeanShift
+from sklearn.decomposition import PCA
 from sklearn.mixture import GaussianMixture
 
 
