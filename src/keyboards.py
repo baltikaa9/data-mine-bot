@@ -1,12 +1,13 @@
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 
-main_kb = ReplyKeyboardMarkup(
-    keyboard=[
-        [KeyboardButton(text='Кластеризация')],
-        [KeyboardButton(text='Классификация')],
-    ],
-    resize_keyboard=True
-)
+def get_main_menu_kb():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text='Кластеризация')],
+            [KeyboardButton(text='Классификация')],
+        ],
+        resize_keyboard=True
+    )
 
 
 def get_clustering_methods_kb():
@@ -24,5 +25,16 @@ def get_clustering_methods_kb():
                 InlineKeyboardButton(text='Средний сдвиг', callback_data='meanshift'),
                 InlineKeyboardButton(text='🔍 Определить оптимальное k', callback_data='auto_clusters'),
             ],
+        ]
+    )
+
+def get_classification_methods_kb():
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text='Логистическая регрессия', callback_data='logreg'),
+             InlineKeyboardButton(text='Случайный лес', callback_data='random_forest')],
+            [InlineKeyboardButton(text='SVM', callback_data='svm'),
+             InlineKeyboardButton(text='KNN', callback_data='knn')],
+            [InlineKeyboardButton(text='Назад', callback_data='back')]
         ]
     )

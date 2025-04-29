@@ -3,10 +3,17 @@ from io import BytesIO
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import seaborn as sns
 from sklearn.base import BaseEstimator
 from sklearn.cluster import KMeans, DBSCAN, AgglomerativeClustering, MeanShift
 from sklearn.decomposition import PCA
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, confusion_matrix
 from sklearn.mixture import GaussianMixture
+from sklearn.model_selection import train_test_split
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.svm import SVC
 
 
 async def process_csv(
@@ -111,3 +118,83 @@ def find_optimal_clusters(data: np.ndarray, max_k: int = 10) -> tuple[int, np.nd
         bic.append(gmm.bic(data))
 
     return ks[np.argmin(bic)], ks, bic
+
+
+from sklearn.decomposition import PCA
+
+
+async def process_classification(
+        file_bytes: bytes,
+        target_column: str,
+        test_size: float = 0.2,
+        method: str = 'logreg'
+) -> tuple[bytes | None, str | None, float]:
+    """Обработка CSV для классификации + визуализация"""
+    try:
+        df = pd.read_csv(BytesIO(file_bytes))
+
+        if target_column not in df.columns:
+            return None, f"❌ Колонка '{target_column}' не найдена", 0.0
+
+        X = df.drop(target_column, axis=1).select_dtypes(include=[np.number])
+        y = df[target_column]
+
+        if X.empty:
+            return None, "❌ Нет числовых признаков для обучения", 0.0
+        if X.shape[1] < 2:
+            return None, "❌ Нужно минимум 2 признака для визуализации", 0.0
+
+        # Разделение данных
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size)
+
+        # Обучение модели
+        model = None
+        if method == 'logreg':
+            model = LogisticRegression(max_iter=1000)
+        elif method == 'random_forest':
+            model = RandomForestClassifier()
+        elif method == 'svm':
+            model = SVC()
+        elif method == 'knn':
+            model = KNeighborsClassifier()
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_test)
+        accuracy = accuracy_score(y_test, y_pred)
+
+        # Создание графиков
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(20, 8))
+
+        # 1. Матрица ошибок
+        cm = confusion_matrix(y_test, y_pred)
+        sns.heatmap(cm, annot=True, fmt='d', ax=ax1)
+        ax1.set_title("Матрица ошибок")
+        ax1.set_xlabel("Предсказанные классы")
+        ax1.set_ylabel("Истинные классы")
+
+        # 2. Распределение классов (через PCA)
+        pca = PCA(n_components=2)
+        X_pca = pca.fit_transform(X_test)
+        scatter = ax2.scatter(
+            X_pca[:, 0],
+            X_pca[:, 1],
+            c=y_pred,
+            cmap='viridis',
+            alpha=0.6
+        )
+        ax2.set_title("Распределение классов (PCA)")
+        ax2.set_xlabel("Главная компонента 1")
+        ax2.set_ylabel("Главная компонента 2")
+        plt.colorbar(scatter, ax=ax2, label="Класс")
+
+        plt.tight_layout()
+
+        # Сохранение в байты
+        buf = BytesIO()
+        plt.savefig(buf, format='png', bbox_inches='tight')
+        buf.seek(0)
+        plt.close(fig)
+
+        return buf.getvalue(), None, accuracy
+
+    except Exception as e:
+        return None, f"❌ Ошибка: {str(e)}", 0.0
