@@ -171,10 +171,16 @@ async def handle_classification_file(message: Message, state: FSMContext):
     if error:
         await message.answer(error, reply_markup=get_main_menu_kb())
     else:
+        # Отправляем распределение классов
         await message.answer_photo(
-            types.BufferedInputFile(image_data, filename="confusion_matrix.png"),
-            caption=f"Точность модели: {accuracy:.2f}",
-            reply_markup=get_main_menu_kb()
+            types.BufferedInputFile(image_data[1], filename="pca_distribution.png"),
+            caption=f"Распределение классов (Точность: {accuracy:.2f})"
+        )
+
+        # Отправляем матрицу ошибок
+        await message.answer_photo(
+            types.BufferedInputFile(image_data[0], filename="confusion_matrix.png"),
+            caption="Матрица ошибок:"
         )
 
     await state.clear()

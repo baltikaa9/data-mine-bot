@@ -1,4 +1,5 @@
 from io import BytesIO
+from typing import Any, Coroutine
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -128,7 +129,7 @@ async def process_classification(
         target_column: str,
         test_size: float = 0.2,
         method: str = 'logreg'
-) -> tuple[bytes | None, str | None, float]:
+) -> tuple[None, str, float] | tuple[list[bytes], None, float | int]:
     """Обработка CSV для классификации + визуализация"""
     try:
         df = pd.read_csv(BytesIO(file_bytes))
@@ -161,17 +162,24 @@ async def process_classification(
         y_pred = model.predict(X_test)
         accuracy = accuracy_score(y_test, y_pred)
 
-        # Создание графиков
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(20, 8))
+        # Создаём два отдельных изображения
+        images = []
 
         # 1. Матрица ошибок
+        fig1, ax1 = plt.subplots(figsize=(10, 6))
         cm = confusion_matrix(y_test, y_pred)
         sns.heatmap(cm, annot=True, fmt='d', ax=ax1)
         ax1.set_title("Матрица ошибок")
         ax1.set_xlabel("Предсказанные классы")
         ax1.set_ylabel("Истинные классы")
+        buf1 = BytesIO()
+        plt.savefig(buf1, format='png', bbox_inches='tight')
+        buf1.seek(0)
+        images.append(buf1.getvalue())
+        plt.close(fig1)
 
-        # 2. Распределение классов (через PCA)
+        # 2. Распределение классов через PCA
+        fig2, ax2 = plt.subplots(figsize=(10, 6))
         pca = PCA(n_components=2)
         X_pca = pca.fit_transform(X_test)
         scatter = ax2.scatter(
@@ -185,16 +193,13 @@ async def process_classification(
         ax2.set_xlabel("Главная компонента 1")
         ax2.set_ylabel("Главная компонента 2")
         plt.colorbar(scatter, ax=ax2, label="Класс")
+        buf2 = BytesIO()
+        plt.savefig(buf2, format='png', bbox_inches='tight')
+        buf2.seek(0)
+        images.append(buf2.getvalue())
+        plt.close(fig2)
 
-        plt.tight_layout()
-
-        # Сохранение в байты
-        buf = BytesIO()
-        plt.savefig(buf, format='png', bbox_inches='tight')
-        buf.seek(0)
-        plt.close(fig)
-
-        return buf.getvalue(), None, accuracy
+        return images, None, accuracy
 
     except Exception as e:
         return None, f"❌ Ошибка: {str(e)}", 0.0
