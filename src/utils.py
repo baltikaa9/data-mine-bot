@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from scipy.stats import zscore
 from sklearn.base import BaseEstimator
 from sklearn.cluster import KMeans, DBSCAN, AgglomerativeClustering, MeanShift
 from sklearn.decomposition import PCA
@@ -14,6 +15,7 @@ from sklearn.metrics import accuracy_score, confusion_matrix
 from sklearn.mixture import GaussianMixture
 from sklearn.model_selection import train_test_split
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
 
 
@@ -132,21 +134,41 @@ async def process_classification(
 ) -> tuple[None, str, float] | tuple[list[bytes], None, float | int]:
     """Обработка CSV для классификации + визуализация"""
     try:
+        # Чтение данных
         df = pd.read_csv(BytesIO(file_bytes))
 
+        # Проверка целевой колонки
         if target_column not in df.columns:
             return None, f"❌ Колонка '{target_column}' не найдена", 0.0
 
+        # Выделение признаков и целевой переменной
         X = df.drop(target_column, axis=1).select_dtypes(include=[np.number])
         y = df[target_column]
 
-        if X.empty:
-            return None, "❌ Нет числовых признаков для обучения", 0.0
-        if X.shape[1] < 2:
-            return None, "❌ Нужно минимум 2 признака для визуализации", 0.0
+        # 1. Обработка пропусков
+        initial_rows = X.shape[0]
+        X = X.dropna()
+        y = y[X.index]
+        dropped_na = initial_rows - X.shape[0]
+
+        # 2. Удаление выбросов через Z-score
+        z_scores = zscore(X)
+        abs_z_scores = np.abs(z_scores)
+        filtered_entries = (abs_z_scores < 3).all(axis=1)
+        X = X[filtered_entries]
+        y = y[filtered_entries]
+        dropped_outliers = filtered_entries.size - np.sum(filtered_entries)
+
+        # Проверка минимального размера данных
+        if X.shape[0] < 50:
+            return None, "❌ После очистки осталось слишком мало данных (<50 строк)", 0.0, {}
+
+        # 3. Нормализация данных
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X)
 
         # Разделение данных
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size)
+        X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=test_size)
 
         # Обучение модели
         model = None
