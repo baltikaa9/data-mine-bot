@@ -225,3 +225,40 @@ async def process_classification(
 
     except Exception as e:
         return None, f"❌ Ошибка: {str(e)}", 0.0
+
+
+async def plot_correlation_matrix(df: pd.DataFrame) -> bytes | None:
+    """Строит матрицу корреляции для числовых признаков"""
+    try:
+        # Выбираем только числовые колонки
+        numeric_df = df.select_dtypes(include=[np.number])
+        if numeric_df.shape[1] < 2:
+            return None
+
+        # Строим матрицу корреляции
+        corr = numeric_df.corr()
+
+        # Визуализация
+        fig, ax = plt.subplots(figsize=(12, 10))
+        sns.heatmap(
+            corr,
+            annot=True,
+            fmt=".2f",
+            cmap="coolwarm",
+            ax=ax,
+            mask=np.triu(np.ones_like(corr, dtype=bool)))  # Скрываем верхний треугольник
+        ax.set_title("Матрица корреляции признаков")
+        plt.xticks(rotation=45)
+        plt.tight_layout()
+
+        # Конвертация в байты
+        buf = BytesIO()
+        plt.savefig(buf, format='png', bbox_inches='tight')
+        buf.seek(0)
+        plt.close(fig)
+        return buf.getvalue()
+
+    except Exception as e:
+        print(f"Ошибка при построении матрицы корреляции: {str(e)}")
+        return None
+

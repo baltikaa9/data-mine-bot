@@ -1,3 +1,6 @@
+from io import BytesIO
+
+import pandas as pd
 from aiogram import F, types
 from aiogram import Router
 from aiogram.filters import Command
@@ -7,7 +10,7 @@ from aiogram.types import Message
 from .keyboards import get_main_menu_kb, get_clustering_methods_kb, get_classification_methods_kb
 from .states.classification import Classification
 from .states.clustering import Clustering
-from .utils import process_csv, plot_clusters_count, process_classification
+from .utils import process_csv, plot_clusters_count, process_classification, plot_correlation_matrix
 
 router = Router()
 
@@ -106,6 +109,17 @@ async def handle_csv(message: Message, state: FSMContext):
     file = await message.bot.download(message.document)
     file_bytes = file.read()
 
+    try:
+        df = pd.read_csv(BytesIO(file_bytes))
+        corr_image = await plot_correlation_matrix(df)
+        if corr_image:
+            await message.answer_photo(
+                types.BufferedInputFile(corr_image, filename="correlation.png"),
+                caption="Матрица корреляции признаков:"
+            )
+    except Exception as e:
+        await message.answer(f"⚠️ Не удалось построить матрицу корреляции: {str(e)}")
+
     if method in ['kmeans', 'gmm', 'hierarchical']:
         image_data, error = await process_csv(file_bytes, method, clusters)
         caption = f'Кластеризация ({method}, k={clusters}):'
@@ -161,6 +175,17 @@ async def handle_classification_file(message: Message, state: FSMContext):
     target = message.text.strip()
 
     file_bytes = data['file'].read()
+
+    try:
+        df = pd.read_csv(BytesIO(file_bytes))
+        corr_image = await plot_correlation_matrix(df)
+        if corr_image:
+            await message.answer_photo(
+                types.BufferedInputFile(corr_image, filename="correlation.png"),
+                caption="Матрица корреляции признаков:"
+            )
+    except Exception as e:
+        await message.answer(f"⚠️ Не удалось построить матрицу корреляции: {str(e)}")
 
     image_data, error, accuracy = await process_classification(
         file_bytes,
