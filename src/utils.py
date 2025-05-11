@@ -1,5 +1,4 @@
 from io import BytesIO
-from typing import Any, Coroutine
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -7,11 +6,15 @@ import pandas as pd
 import seaborn as sns
 from scipy.stats import zscore
 from sklearn.base import BaseEstimator
-from sklearn.cluster import KMeans, DBSCAN, AgglomerativeClustering, MeanShift
+from sklearn.cluster import AgglomerativeClustering
+from sklearn.cluster import DBSCAN
+from sklearn.cluster import KMeans
+from sklearn.cluster import MeanShift
 from sklearn.decomposition import PCA
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score, confusion_matrix
+from sklearn.metrics import accuracy_score
+from sklearn.metrics import confusion_matrix
 from sklearn.mixture import GaussianMixture
 from sklearn.model_selection import train_test_split
 from sklearn.neighbors import KNeighborsClassifier
@@ -78,15 +81,26 @@ async def process_csv(
         # PCA для многомерных данных
         if X.shape[1] > 2:
             pca = PCA(n_components=2)
-            X_vis: np.ndarray = pca.fit_transform(X)
-            ax.set_xlabel('PCA Component 1')
-            ax.set_ylabel('PCA Component 2')
+            X_pca: np.ndarray = pca.fit_transform(X)
+
+            loadings = pca.components_
+            feature_names = df.columns
+
+            n_top_features = 3  # Сколько признаков показать для каждой компоненты
+
+            # Для Component 1
+            top_features_comp1 = feature_names[abs(loadings[0]).argsort()[::-1][:n_top_features]]
+            ax.set_xlabel(f"PCA Component 1\n(Top features: {', '.join(top_features_comp1)})")
+
+            # Для Component 2
+            top_features_comp2 = feature_names[abs(loadings[1]).argsort()[::-1][:n_top_features]]
+            ax.set_ylabel(f"PCA Component 2\n(Top features: {', '.join(top_features_comp2)})")
         else:
-            X_vis = X
+            X_pca = X
             ax.set_xlabel(df.columns[0])
             ax.set_ylabel(df.columns[1] if X.shape[1] > 1 else '')
 
-        scatter = ax.scatter(X_vis[:, 0], X_vis[:, 1], c=clusters, cmap='viridis', alpha=0.6)
+        scatter = ax.scatter(X_pca[:, 0], X_pca[:, 1], c=clusters, cmap='viridis', alpha=0.6)
         ax.legend(*scatter.legend_elements(), title='Кластеры')
         plt.title(f'Кластеризация ({method})')
 
@@ -99,7 +113,6 @@ async def process_csv(
         return buf.getvalue(), None
 
     except Exception as e:
-        raise e
         return None, f'❌ Ошибка: {str(e)}'
 
 def plot_clusters_count(file_bytes: bytes):
@@ -141,7 +154,6 @@ def find_optimal_clusters(data: np.ndarray, max_k: int = 10) -> tuple[int, np.nd
     return ks[np.argmin(bic)], ks, bic
 
 
-from sklearn.decomposition import PCA
 
 
 async def process_classification(
@@ -264,7 +276,8 @@ async def plot_correlation_matrix(df: pd.DataFrame) -> bytes | None:
             fmt=".2f",
             cmap="coolwarm",
             ax=ax,
-            mask=np.triu(np.ones_like(corr, dtype=bool)))  # Скрываем верхний треугольник
+            # mask=np.triu(np.ones_like(corr, dtype=bool))
+        )  # Скрываем верхний треугольник
         ax.set_title("Матрица корреляции признаков")
         plt.xticks(rotation=45)
         plt.tight_layout()
