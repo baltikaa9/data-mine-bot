@@ -121,10 +121,10 @@ async def handle_csv(message: Message, state: FSMContext):
         await message.answer(f"⚠️ Не удалось построить матрицу корреляции: {str(e)}")
 
     if method in ['kmeans', 'gmm', 'hierarchical']:
-        image_data, error = await process_csv(file_bytes, method, clusters)
+        image_data, error = await process_csv(df, method, clusters)
         caption = f'Кластеризация ({method}, k={clusters}):'
     else:
-        image_data, error = await process_csv(file_bytes, method)
+        image_data, error = await process_csv(df, method)
         caption = f'Кластеризация ({method}):'
 
     if error:

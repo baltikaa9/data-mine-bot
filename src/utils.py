@@ -20,34 +20,35 @@ from sklearn.svm import SVC
 
 
 async def process_csv(
-        file_bytes: bytes,
+        df: pd.DataFrame,
         method: str,
         n_clusters: int | None = None
 ) -> tuple[bytes | None, str | None]:
     '''Обрабатывает CSV и возвращает PNG-график кластеров.'''
     try:
         # Чтение данных
-        df: pd.DataFrame = pd.read_csv(BytesIO(file_bytes))
+        # df: pd.DataFrame = pd.read_csv(BytesIO(file_bytes))
         X: np.ndarray = df.select_dtypes(include=[np.number]).values
 
         if X.shape[0] < 3:
             return None, '❌ Нужно минимум 3 строки данных'
 
-        optimal_k, ks, bic = find_optimal_clusters(X)
+        if not n_clusters:
+            optimal_k, ks, bic = find_optimal_clusters(X)
 
         # Выбор модели
         model: BaseEstimator
         match method:
             case 'kmeans':
-                model = KMeans(n_clusters=n_clusters or optimal_k)
+                model = KMeans(n_clusters=n_clusters or optimal_k, missing_values=np.nan)
             case 'gmm':
-                model = GaussianMixture(n_components=n_clusters or optimal_k)
+                model = GaussianMixture(n_components=n_clusters or optimal_k, missing_values=np.nan)
             case 'dbscan':
-                model = DBSCAN(eps=0.5, min_samples=8)
+                model = DBSCAN(eps=0.5, min_samples=8, missing_values=np.nan)
             case 'hierarchical':
-                model = AgglomerativeClustering(n_clusters=n_clusters or optimal_k)
+                model = AgglomerativeClustering(n_clusters=n_clusters or optimal_k, missing_values=np.nan)
             case 'meanshift':
-                model = MeanShift()
+                model = MeanShift(missing_values=np.nan)
             case _:
                 return None, '❌ Неизвестный метод'
 
@@ -82,6 +83,7 @@ async def process_csv(
         return buf.getvalue(), None
 
     except Exception as e:
+        raise e
         return None, f'❌ Ошибка: {str(e)}'
 
 def plot_clusters_count(file_bytes: bytes):
