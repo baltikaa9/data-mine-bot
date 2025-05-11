@@ -4,6 +4,7 @@ import logging
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
+from aiohttp import ClientTimeout
 
 from src.config import BOT_TOKEN
 from src.handlers import router
@@ -12,7 +13,11 @@ from src.handlers import router
 logging.basicConfig(level=logging.INFO)
 
 # Инициализация бота и диспетчера
-bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+bot = Bot(
+    token=BOT_TOKEN,
+    default=DefaultBotProperties(parse_mode=ParseMode.HTML),
+    timeout=ClientTimeout(total=60)
+)
 dp = Dispatcher()
 
 # Подключаем роутер с обработчиками
