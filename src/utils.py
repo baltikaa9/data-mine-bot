@@ -19,6 +19,21 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
 
 
+def preprocess_data(df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
+    df_clean = df.dropna()
+
+    for col in columns:
+        q1 = df_clean[col].quantile(0.25)
+        q3 = df_clean[col].quantile(0.75)
+        iqr = q3 - q1
+        lower_bound = q1 - 1.5 * iqr
+        upper_bound = q3 + 1.5 * iqr
+
+        mask = (df_clean[col] >= lower_bound) & (df_clean[col] <= upper_bound)
+        df_clean = df_clean[mask]
+
+    return df_clean
+
 async def process_csv(
         df: pd.DataFrame,
         method: str,
@@ -26,8 +41,9 @@ async def process_csv(
 ) -> tuple[bytes | None, str | None]:
     '''Обрабатывает CSV и возвращает PNG-график кластеров.'''
     try:
-        # Чтение данных
-        # df: pd.DataFrame = pd.read_csv(BytesIO(file_bytes))
+        numeric_cols = df.select_dtypes(include=['int64', 'float64']).columns
+        df = preprocess_data(df, numeric_cols)
+
         X: np.ndarray = df.select_dtypes(include=[np.number]).values
 
         if X.shape[0] < 3:
@@ -40,15 +56,15 @@ async def process_csv(
         model: BaseEstimator
         match method:
             case 'kmeans':
-                model = KMeans(n_clusters=n_clusters or optimal_k, missing_values=np.nan)
+                model = KMeans(n_clusters=n_clusters or optimal_k)
             case 'gmm':
-                model = GaussianMixture(n_components=n_clusters or optimal_k, missing_values=np.nan)
+                model = GaussianMixture(n_components=n_clusters or optimal_k)
             case 'dbscan':
-                model = DBSCAN(eps=0.5, min_samples=8, missing_values=np.nan)
+                model = DBSCAN(eps=0.5, min_samples=8)
             case 'hierarchical':
-                model = AgglomerativeClustering(n_clusters=n_clusters or optimal_k, missing_values=np.nan)
+                model = AgglomerativeClustering(n_clusters=n_clusters or optimal_k)
             case 'meanshift':
-                model = MeanShift(missing_values=np.nan)
+                model = MeanShift()
             case _:
                 return None, '❌ Неизвестный метод'
 
