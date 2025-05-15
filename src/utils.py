@@ -20,6 +20,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
+from sklearn.metrics import silhouette_score
 
 
 def preprocess_data(df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
@@ -41,7 +42,7 @@ async def process_csv(
         df: pd.DataFrame,
         method: str,
         n_clusters: int | None = None
-) -> tuple[bytes | None, str | None]:
+) -> tuple[bytes | None, str | None, float | None]:
     '''Обрабатывает CSV и возвращает PNG-график кластеров.'''
     try:
         numeric_cols = df.select_dtypes(include=['int64', 'float64']).columns
@@ -74,6 +75,8 @@ async def process_csv(
         # Кластеризация
         clusters: np.ndarray = model.fit_predict(X)
 
+        silhouette = silhouette_score(X, clusters)
+
         # Визуализация
         fig: plt.Figure = plt.figure(figsize=(10, 6))
         ax: plt.Axes = fig.add_subplot(111)
@@ -83,26 +86,18 @@ async def process_csv(
             pca = PCA(n_components=2)
             X_pca: np.ndarray = pca.fit_transform(X)
 
-            loadings = pca.components_
-            feature_names = df.columns
-
-            n_top_features = 3  # Сколько признаков показать для каждой компоненты
-
             # Для Component 1
-            top_features_comp1 = feature_names[abs(loadings[0]).argsort()[::-1][:n_top_features]]
-            ax.set_xlabel(f"PCA Component 1\n(Top features: {', '.join(top_features_comp1)})")
+            ax.set_xlabel('$PCA_1$')
 
             # Для Component 2
-            top_features_comp2 = feature_names[abs(loadings[1]).argsort()[::-1][:n_top_features]]
-            ax.set_ylabel(f"PCA Component 2\n(Top features: {', '.join(top_features_comp2)})")
+            ax.set_ylabel('$PCA_2$')
         else:
             X_pca = X
             ax.set_xlabel(df.columns[0])
             ax.set_ylabel(df.columns[1] if X.shape[1] > 1 else '')
 
         scatter = ax.scatter(X_pca[:, 0], X_pca[:, 1], c=clusters, cmap='viridis', alpha=0.6)
-        ax.legend(*scatter.legend_elements(), title='Кластеры')
-        plt.title(f'Кластеризация ({method})')
+        ax.legend(*scatter.legend_elements(), title='Кластеры', loc='upper right')
 
         # Конвертация в байты
         buf: BytesIO = BytesIO()
@@ -110,18 +105,19 @@ async def process_csv(
         buf.seek(0)
         plt.close(fig)
 
-        return buf.getvalue(), None
+        return buf.getvalue(), None, silhouette
 
     except Exception as e:
         return None, f'❌ Ошибка: {str(e)}'
 
-def plot_clusters_count(file_bytes: bytes):
+def plot_clusters_count(df: pd.DataFrame):
     try:
-        df = pd.read_csv(BytesIO(file_bytes))
+        numeric_cols = df.select_dtypes(include=['int64', 'float64']).columns
+        df = preprocess_data(df, numeric_cols)
         X = df.select_dtypes(include=[np.number]).values
 
         if X.shape[0] < 3:
-            return None, "❌ Нужно минимум 3 строки данных"
+            return None, '❌ Нужно минимум 3 строки данных'
 
         _, ks, bic = find_optimal_clusters(X)
 
@@ -140,7 +136,7 @@ def plot_clusters_count(file_bytes: bytes):
         return buf.getvalue(), None
 
     except Exception as e:
-        return None, f"❌ Ошибка: {str(e)}"
+        return None, f'❌ Ошибка: {str(e)}'
 
 
 def find_optimal_clusters(data: np.ndarray, max_k: int = 10) -> tuple[int, np.ndarray, list]:
@@ -162,14 +158,14 @@ async def process_classification(
         test_size: float = 0.2,
         method: str = 'logreg'
 ) -> tuple[None, str, float] | tuple[list[bytes], None, float | int]:
-    """Обработка CSV для классификации + визуализация"""
+    '''Обработка CSV для классификации + визуализация'''
     try:
         # Чтение данных
         df = pd.read_csv(BytesIO(file_bytes))
 
         # Проверка целевой колонки
         if target_column not in df.columns:
-            return None, f"❌ Колонка '{target_column}' не найдена", 0.0
+            return None, f'❌ Колонка \'{target_column}\' не найдена', 0.0
 
         # Выделение признаков и целевой переменной
         X = df.drop(target_column, axis=1).select_dtypes(include=[np.number])
@@ -191,7 +187,7 @@ async def process_classification(
 
         # Проверка минимального размера данных
         if X.shape[0] < 50:
-            return None, "❌ После очистки осталось слишком мало данных (<50 строк)", 0.0, {}
+            return None, '❌ После очистки осталось слишком мало данных (<50 строк)', 0.0, {}
 
         # 3. Нормализация данных
         scaler = StandardScaler()
@@ -221,9 +217,9 @@ async def process_classification(
         fig1, ax1 = plt.subplots(figsize=(10, 6))
         cm = confusion_matrix(y_test, y_pred)
         sns.heatmap(cm, annot=True, fmt='d', ax=ax1)
-        ax1.set_title("Матрица ошибок")
-        ax1.set_xlabel("Предсказанные классы")
-        ax1.set_ylabel("Истинные классы")
+        ax1.set_title('Матрица ошибок')
+        ax1.set_xlabel('Предсказанные классы')
+        ax1.set_ylabel('Истинные классы')
         buf1 = BytesIO()
         plt.savefig(buf1, format='png', bbox_inches='tight')
         buf1.seek(0)
@@ -241,10 +237,10 @@ async def process_classification(
             cmap='viridis',
             alpha=0.6
         )
-        ax2.set_title("Распределение классов (PCA)")
-        ax2.set_xlabel("Главная компонента 1")
-        ax2.set_ylabel("Главная компонента 2")
-        plt.colorbar(scatter, ax=ax2, label="Класс")
+        # ax2.set_title('Распределение классов (PCA)')
+        ax2.set_xlabel('$PCA_1$')
+        ax2.set_ylabel('$PCA_2$')
+        plt.colorbar(scatter, ax=ax2, label='Класс')
         buf2 = BytesIO()
         plt.savefig(buf2, format='png', bbox_inches='tight')
         buf2.seek(0)
@@ -254,11 +250,11 @@ async def process_classification(
         return images, None, accuracy
 
     except Exception as e:
-        return None, f"❌ Ошибка: {str(e)}", 0.0
+        return None, f'❌ Ошибка: {str(e)}', 0.0
 
 
 async def plot_correlation_matrix(df: pd.DataFrame) -> bytes | None:
-    """Строит матрицу корреляции для числовых признаков"""
+    '''Строит матрицу корреляции для числовых признаков'''
     try:
         # Выбираем только числовые колонки
         numeric_df = df.select_dtypes(include=[np.number])
@@ -273,12 +269,13 @@ async def plot_correlation_matrix(df: pd.DataFrame) -> bytes | None:
         sns.heatmap(
             corr,
             annot=True,
-            fmt=".2f",
-            cmap="coolwarm",
+            fmt='.2f',
+            cmap='Blues',
             ax=ax,
+            annot_kws={"size": 20},
             # mask=np.triu(np.ones_like(corr, dtype=bool))
         )  # Скрываем верхний треугольник
-        ax.set_title("Матрица корреляции признаков")
+        # ax.set_title('Матрица корреляции признаков')
         plt.xticks(rotation=45)
         plt.tight_layout()
 
@@ -290,6 +287,6 @@ async def plot_correlation_matrix(df: pd.DataFrame) -> bytes | None:
         return buf.getvalue()
 
     except Exception as e:
-        print(f"Ошибка при построении матрицы корреляции: {str(e)}")
+        print(f'Ошибка при построении матрицы корреляции: {str(e)}')
         return None
 

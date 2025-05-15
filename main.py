@@ -1,6 +1,7 @@
 import asyncio
 import logging
 
+import matplotlib
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
@@ -8,6 +9,13 @@ from aiohttp import ClientTimeout
 
 from src.config import BOT_TOKEN
 from src.handlers import router
+
+font = {
+    'family': 'normal',
+    'size': 20
+}
+
+matplotlib.rc('font', **font)
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)

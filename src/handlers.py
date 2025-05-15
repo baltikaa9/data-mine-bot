@@ -85,7 +85,7 @@ async def handle_auto_clusters_file(message: Message, state: FSMContext):
     file_bytes = file.read()
 
     # Строим график методом локтя
-    image_data, error = plot_clusters_count(file_bytes)
+    image_data, error = plot_clusters_count(pd.read_csv(BytesIO(file_bytes)))
 
     if error:
         await message.answer(error, reply_markup=get_main_menu_kb())
@@ -115,17 +115,19 @@ async def handle_csv(message: Message, state: FSMContext):
         if corr_image:
             await message.answer_photo(
                 types.BufferedInputFile(corr_image, filename="correlation.png"),
-                caption="Матрица корреляции признаков:"
+                caption="Матрица корреляции признаков"
             )
     except Exception as e:
         await message.answer(f"⚠️ Не удалось построить матрицу корреляции: {str(e)}")
 
     if method in ['kmeans', 'gmm', 'hierarchical']:
-        image_data, error = await process_csv(df, method, clusters)
-        caption = f'Кластеризация ({method}, k={clusters}):'
+        image_data, error, silhouette = await process_csv(df, method, clusters)
+        caption = f'Кластеризация ({method}, k={clusters})'
     else:
-        image_data, error = await process_csv(df, method)
-        caption = f'Кластеризация ({method}):'
+        image_data, error, silhouette = await process_csv(df, method)
+        caption = f'Кластеризация ({method})'
+
+    caption += f'\nОценка силуэта: {silhouette}'
 
     if error:
         await message.answer(error, reply_markup=get_main_menu_kb())
