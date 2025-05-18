@@ -97,7 +97,8 @@ async def process_csv(
             ax.set_ylabel(df.columns[1] if X.shape[1] > 1 else '')
 
         scatter = ax.scatter(X_pca[:, 0], X_pca[:, 1], c=clusters, cmap='viridis', alpha=0.6)
-        ax.legend(*scatter.legend_elements(), title='Кластеры', loc='upper right')
+        ax.legend(*scatter.legend_elements(), title='Кластеры', bbox_to_anchor=(0., 1.02, 1., .102), loc='lower left',
+                      ncols=4, mode="expand", borderaxespad=0.)
 
         # Конвертация в байты
         buf: BytesIO = BytesIO()
