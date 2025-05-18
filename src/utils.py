@@ -216,8 +216,8 @@ async def process_classification(
         # 1. Матрица ошибок
         fig1, ax1 = plt.subplots(figsize=(10, 6))
         cm = confusion_matrix(y_test, y_pred)
-        sns.heatmap(cm, annot=True, fmt='d', ax=ax1)
-        ax1.set_title('Матрица ошибок')
+        sns.heatmap(cm, annot=True, fmt='d', ax=ax1, cmap='Blues')
+        # ax1.set_title('Матрица ошибок')
         ax1.set_xlabel('Предсказанные классы')
         ax1.set_ylabel('Истинные классы')
         buf1 = BytesIO()
@@ -234,7 +234,7 @@ async def process_classification(
             X_pca[:, 0],
             X_pca[:, 1],
             c=y_pred,
-            cmap='viridis',
+            cmap='bwr',
             alpha=0.6
         )
         # ax2.set_title('Распределение классов (PCA)')
