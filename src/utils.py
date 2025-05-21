@@ -1,4 +1,6 @@
 from io import BytesIO
+from typing import Any
+from typing import Coroutine
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -23,10 +25,11 @@ from sklearn.svm import SVC
 from sklearn.metrics import silhouette_score
 
 
-def preprocess_data(df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
+def preprocess_data(df: pd.DataFrame) -> pd.DataFrame:
     df_clean = df.dropna()
 
-    for col in columns:
+    for col in df.columns:
+        if col == 'Страна': continue
         q1 = df_clean[col].quantile(0.25)
         q3 = df_clean[col].quantile(0.75)
         iqr = q3 - q1
@@ -45,13 +48,22 @@ async def process_csv(
 ) -> tuple[bytes | None, str | None, float | None]:
     '''Обрабатывает CSV и возвращает PNG-график кластеров.'''
     try:
-        numeric_cols = df.select_dtypes(include=['int64', 'float64']).columns
-        df = preprocess_data(df, numeric_cols)
+        # numeric_cols = df.select_dtypes(include=['int64', 'float64']).columns
+        # df = df.select_dtypes(include=[np.number])
 
-        X: np.ndarray = df.select_dtypes(include=[np.number]).values
+        df['Страна'] = pd.factorize(df['Country'])[0]
+        print(df)
+        country_mapping = df[['Country', 'Страна']].drop_duplicates().reset_index(drop=True)
+        print(country_mapping)
+
+        proc_df = preprocess_data(df.select_dtypes(include=[np.number]))
+
+        print(df)
+
+        X: np.ndarray = proc_df.select_dtypes(include=[np.number]).values
 
         if X.shape[0] < 3:
-            return None, '❌ Нужно минимум 3 строки данных'
+            return None, '❌ Нужно минимум 3 строки данных', None
 
         if not n_clusters:
             optimal_k, ks, bic = find_optimal_clusters(X)
@@ -70,7 +82,7 @@ async def process_csv(
             case 'meanshift':
                 model = MeanShift()
             case _:
-                return None, '❌ Неизвестный метод'
+                return None, '❌ Неизвестный метод', None
 
         # Кластеризация
         clusters: np.ndarray = model.fit_predict(X)
@@ -78,27 +90,38 @@ async def process_csv(
         silhouette = silhouette_score(X, clusters)
 
         # Визуализация
-        fig: plt.Figure = plt.figure(figsize=(10, 6))
-        ax: plt.Axes = fig.add_subplot(111)
+        fig: plt.Figure = plt.figure(figsize=(16, 8))
+        ax1: plt.Axes = fig.add_subplot(121)
+        ax2: plt.Axes = fig.add_subplot(122)
 
         # PCA для многомерных данных
-        if X.shape[1] > 2:
-            pca = PCA(n_components=2)
-            X_pca: np.ndarray = pca.fit_transform(X)
+        # if X.shape[1] > 2:
+        #     pca = PCA(n_components=2)
+        #     X_pca: np.ndarray = pca.fit_transform(X)
+        #
+        #     # Для Component 1
+        #     ax.set_xlabel('$PCA_1$')
+        #
+        #     # Для Component 2
+        #     ax.set_ylabel('$PCA_2$')
+        # else:
+        #     X_pca = X
+        #     ax.set_xlabel(df.columns[0])
+        #     ax.set_ylabel(df.columns[1] if X.shape[1] > 1 else '')
 
-            # Для Component 1
-            ax.set_xlabel('$PCA_1$')
+        ax1.set_xlabel(proc_df.columns[0])
+        ax1.set_ylabel(proc_df.columns[1])
 
-            # Для Component 2
-            ax.set_ylabel('$PCA_2$')
-        else:
-            X_pca = X
-            ax.set_xlabel(df.columns[0])
-            ax.set_ylabel(df.columns[1] if X.shape[1] > 1 else '')
+        ax2.set_xlabel(proc_df.columns[0])
+        ax2.set_ylabel(proc_df.columns[2])
 
-        scatter = ax.scatter(X_pca[:, 0], X_pca[:, 1], c=clusters, cmap='viridis', alpha=0.6)
-        ax.legend(*scatter.legend_elements(), title='Кластеры', bbox_to_anchor=(0., 1.02, 1., .102), loc='lower left',
+        scatter1 = ax1.scatter(X[:, 0], X[:, 1], c=clusters, cmap='viridis', alpha=0.6)
+        ax1.legend(*scatter1.legend_elements(), title='Кластеры', bbox_to_anchor=(0., 1.02, 1., .102), loc='lower left',
                       ncols=4, mode="expand", borderaxespad=0.)
+
+        scatter2 = ax2.scatter(X[:, 0], X[:, 2], c=clusters, cmap='viridis', alpha=0.6)
+        ax2.legend(*scatter2.legend_elements(), title='Кластеры', bbox_to_anchor=(0., 1.02, 1., .102), loc='lower left',
+                   ncols=4, mode="expand", borderaxespad=0.)
 
         # Конвертация в байты
         buf: BytesIO = BytesIO()
@@ -109,7 +132,7 @@ async def process_csv(
         return buf.getvalue(), None, silhouette
 
     except Exception as e:
-        return None, f'❌ Ошибка: {str(e)}'
+        return None, f'❌ Ошибка: {str(e)}', None
 
 def plot_clusters_count(df: pd.DataFrame):
     try:
@@ -258,12 +281,21 @@ async def plot_correlation_matrix(df: pd.DataFrame) -> bytes | None:
     '''Строит матрицу корреляции для числовых признаков'''
     try:
         # Выбираем только числовые колонки
+        df['Страна'] = pd.factorize(df['Country'])[0]
+        print(df)
+        country_mapping = df[['Country', 'Страна']].drop_duplicates().reset_index(drop=True)
+        print(country_mapping)
+
+        # df = preprocess_data(df.select_dtypes(include=[np.number]))
+
+        # print(df)
         numeric_df = df.select_dtypes(include=[np.number])
         if numeric_df.shape[1] < 2:
             return None
 
         # Строим матрицу корреляции
         corr = numeric_df.corr()
+        print(corr)
 
         # Визуализация
         fig, ax = plt.subplots(figsize=(12, 10))
