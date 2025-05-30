@@ -11,8 +11,8 @@ from src.config import BOT_TOKEN
 from src.handlers import router
 
 font = {
-    'family': 'normal',
-    'size': 20
+    'family': 'Times New Roman',
+    'size': 26
 }
 
 matplotlib.rc('font', **font)

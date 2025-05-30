@@ -25,10 +25,13 @@ from sklearn.svm import SVC
 from sklearn.metrics import silhouette_score
 
 
-def preprocess_data(df: pd.DataFrame) -> pd.DataFrame:
+def preprocess_customer(df: pd.DataFrame) -> pd.DataFrame:
     df_clean = df.dropna()
 
-    for col in df.columns:
+    df_clean = df_clean.select_dtypes(include=[np.number])
+    print(df_clean.head())
+
+    for col in df_clean.columns:
         if col == 'Страна': continue
         q1 = df_clean[col].quantile(0.25)
         q3 = df_clean[col].quantile(0.75)
@@ -41,6 +44,30 @@ def preprocess_data(df: pd.DataFrame) -> pd.DataFrame:
 
     return df_clean
 
+def preprocess_online_retail(df: pd.DataFrame) -> pd.DataFrame:
+    df_clean = df.dropna()
+
+    df_clean.loc[:, "InvoiceTime"] = pd.to_datetime(df_clean["InvoiceDate"], errors="coerce").dt.time
+    df_clean.loc[:, "Код страны"] = df_clean["Country"].astype("category").cat.codes
+    df_clean.loc[:, "Время покупки"] = df_clean["InvoiceTime"].apply(lambda t: t.hour + t.minute / 60 if pd.notnull(t) else None)
+
+    df_clean = df_clean.select_dtypes(include=[np.number])
+    print(df_clean.head())
+
+    for col in df_clean.columns:
+        if col == 'Код страны': continue
+        q1 = df_clean[col].quantile(0.25)
+        q3 = df_clean[col].quantile(0.75)
+        iqr = q3 - q1
+        lower_bound = q1 - 1.5 * iqr
+        upper_bound = q3 + 1.5 * iqr
+
+        mask = (df_clean[col] >= lower_bound) & (df_clean[col] <= upper_bound)
+        df_clean = df_clean[mask]
+
+    return df_clean
+
+
 async def process_csv(
         df: pd.DataFrame,
         method: str,
@@ -51,16 +78,16 @@ async def process_csv(
         # numeric_cols = df.select_dtypes(include=['int64', 'float64']).columns
         # df = df.select_dtypes(include=[np.number])
 
-        df['Страна'] = pd.factorize(df['Country'])[0]
-        print(df)
-        country_mapping = df[['Country', 'Страна']].drop_duplicates().reset_index(drop=True)
-        print(country_mapping)
+        # df['Страна'] = pd.factorize(df['Country'])[0]
+        # print(df)
+        # country_mapping = df[['Country', 'Страна']].drop_duplicates().reset_index(drop=True)
+        # print(country_mapping)
 
-        proc_df = preprocess_data(df.select_dtypes(include=[np.number]))
+        # proc_df = preprocess_online_retail(df)
 
-        print(df)
+        # print(df)
 
-        X: np.ndarray = proc_df.select_dtypes(include=[np.number]).values
+        X: np.ndarray = df.select_dtypes(include=[np.number]).values
 
         if X.shape[0] < 3:
             return None, '❌ Нужно минимум 3 строки данных', None
@@ -89,38 +116,53 @@ async def process_csv(
 
         silhouette = silhouette_score(X, clusters)
 
+        x_index = 0
+        y_index = 1
+
         # Визуализация
-        fig: plt.Figure = plt.figure(figsize=(16, 8))
-        ax1: plt.Axes = fig.add_subplot(121)
-        ax2: plt.Axes = fig.add_subplot(122)
+        fig: plt.Figure = plt.figure(figsize=(5, 5))
+        ax: plt.Axes = fig.add_subplot(111)
+        # ax1: plt.Axes = fig.add_subplot(121)
+        # ax2: plt.Axes = fig.add_subplot(122)
 
         # PCA для многомерных данных
-        # if X.shape[1] > 2:
-        #     pca = PCA(n_components=2)
-        #     X_pca: np.ndarray = pca.fit_transform(X)
-        #
-        #     # Для Component 1
-        #     ax.set_xlabel('$PCA_1$')
-        #
-        #     # Для Component 2
-        #     ax.set_ylabel('$PCA_2$')
-        # else:
-        #     X_pca = X
-        #     ax.set_xlabel(df.columns[0])
-        #     ax.set_ylabel(df.columns[1] if X.shape[1] > 1 else '')
+        if X.shape[1] > 2:
+            pca = PCA(n_components=2)
+            X_pca: np.ndarray = pca.fit_transform(X)
 
-        ax1.set_xlabel(proc_df.columns[0])
-        ax1.set_ylabel(proc_df.columns[1])
+            # Для Component 1
+            ax.set_xlabel('$PCA_1$')
 
-        ax2.set_xlabel(proc_df.columns[0])
-        ax2.set_ylabel(proc_df.columns[2])
+            # Для Component 2
+            ax.set_ylabel('$PCA_2$')
+        else:
+            X_pca = X
+            ax.set_xlabel(df.columns[0])
+            ax.set_ylabel(df.columns[1] if X.shape[1] > 1 else '')
 
-        scatter1 = ax1.scatter(X[:, 0], X[:, 1], c=clusters, cmap='viridis', alpha=0.6)
-        ax1.legend(*scatter1.legend_elements(), title='Кластеры', bbox_to_anchor=(0., 1.02, 1., .102), loc='lower left',
-                      ncols=4, mode="expand", borderaxespad=0.)
+        # ax.set_xlabel(df.columns[x_index])
+        # ax.set_ylabel(df.columns[y_index])
 
-        scatter2 = ax2.scatter(X[:, 0], X[:, 2], c=clusters, cmap='viridis', alpha=0.6)
-        ax2.legend(*scatter2.legend_elements(), title='Кластеры', bbox_to_anchor=(0., 1.02, 1., .102), loc='lower left',
+        # scatter = ax.scatter(X[:, x_index], X[:, y_index], c=clusters, cmap='viridis', alpha=0.6)
+        # ax.legend(*scatter.legend_elements(), title='Кластеры', bbox_to_anchor=(0., 1.02, 1., .102), loc='lower left',
+        #           ncols=4, mode="expand", borderaxespad=0.)
+
+        # ax1.set_xlabel(proc_df.columns[0])
+        # ax1.set_ylabel(proc_df.columns[1])
+
+        # ax2.set_xlabel(proc_df.columns[0])
+        # ax2.set_ylabel(proc_df.columns[2])
+
+        # scatter1 = ax1.scatter(X[:, 0], X[:, 1], c=clusters, cmap='viridis', alpha=0.6)
+        # ax1.legend(*scatter1.legend_elements(), title='Кластеры', bbox_to_anchor=(0., 1.02, 1., .102), loc='lower left',
+        #               ncols=4, mode="expand", borderaxespad=0.)
+
+        # scatter2 = ax2.scatter(X[:, 0], X[:, 2], c=clusters, cmap='viridis', alpha=0.6)
+        # ax2.legend(*scatter2.legend_elements(), title='Кластеры', bbox_to_anchor=(0., 1.02, 1., .102), loc='lower left',
+        #            ncols=4, mode="expand", borderaxespad=0.)
+
+        scatter = ax.scatter(X_pca[:, 0], X_pca[:, 1], c=clusters, cmap='viridis', alpha=0.6)
+        ax.legend(*scatter.legend_elements(), title='Кластеры', bbox_to_anchor=(0., 1.02, 1., .102), loc='lower left',
                    ncols=4, mode="expand", borderaxespad=0.)
 
         # Конвертация в байты
@@ -132,6 +174,7 @@ async def process_csv(
         return buf.getvalue(), None, silhouette
 
     except Exception as e:
+        raise e
         return None, f'❌ Ошибка: {str(e)}', None
 
 def plot_clusters_count(df: pd.DataFrame):
@@ -173,9 +216,6 @@ def find_optimal_clusters(data: np.ndarray, max_k: int = 10) -> tuple[int, np.nd
 
     return ks[np.argmin(bic)], ks, bic
 
-
-
-
 async def process_classification(
         file_bytes: bytes,
         target_column: str,
@@ -195,30 +235,33 @@ async def process_classification(
         X = df.drop(target_column, axis=1).select_dtypes(include=[np.number])
         y = df[target_column]
 
-        # 1. Обработка пропусков
-        initial_rows = X.shape[0]
-        X = X.dropna()
-        y = y[X.index]
-        dropped_na = initial_rows - X.shape[0]
+        x_index = 0
+        y_index = 1
 
-        # 2. Удаление выбросов через Z-score
-        z_scores = zscore(X)
-        abs_z_scores = np.abs(z_scores)
-        filtered_entries = (abs_z_scores < 3).all(axis=1)
-        X = X[filtered_entries]
-        y = y[filtered_entries]
-        dropped_outliers = filtered_entries.size - np.sum(filtered_entries)
-
-        # Проверка минимального размера данных
-        if X.shape[0] < 50:
-            return None, '❌ После очистки осталось слишком мало данных (<50 строк)', 0.0, {}
+        # # 1. Обработка пропусков
+        # initial_rows = X.shape[0]
+        # X = X.dropna()
+        # y = y[X.index]
+        # dropped_na = initial_rows - X.shape[0]
+        #
+        # # 2. Удаление выбросов через Z-score
+        # z_scores = zscore(X)
+        # abs_z_scores = np.abs(z_scores)
+        # filtered_entries = (abs_z_scores < 3).all(axis=1)
+        # X = X[filtered_entries]
+        # y = y[filtered_entries]
+        # dropped_outliers = filtered_entries.size - np.sum(filtered_entries)
+        #
+        # # Проверка минимального размера данных
+        # if X.shape[0] < 50:
+        #     return None, '❌ После очистки осталось слишком мало данных (<50 строк)', 0.0, {}
 
         # 3. Нормализация данных
-        scaler = StandardScaler()
-        X_scaled = scaler.fit_transform(X)
+        # scaler = StandardScaler()
+        # X_scaled = scaler.fit_transform(X)
 
         # Разделение данных
-        X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=test_size)
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size)
 
         # Обучение модели
         model = None
@@ -240,7 +283,7 @@ async def process_classification(
         # 1. Матрица ошибок
         fig1, ax1 = plt.subplots(figsize=(10, 6))
         cm = confusion_matrix(y_test, y_pred)
-        sns.heatmap(cm, annot=True, fmt='d', ax=ax1, cmap='Blues')
+        sns.heatmap(cm, annot=True, fmt='d', ax=ax1, cmap='Blues', annot_kws={"size": 26})
         # ax1.set_title('Матрица ошибок')
         ax1.set_xlabel('Предсказанные классы')
         ax1.set_ylabel('Истинные классы')
@@ -251,19 +294,19 @@ async def process_classification(
         plt.close(fig1)
 
         # 2. Распределение классов через PCA
-        fig2, ax2 = plt.subplots(figsize=(10, 6))
-        pca = PCA(n_components=2)
-        X_pca = pca.fit_transform(X_test)
+        fig2, ax2 = plt.subplots(figsize=(6, 6))
+        # pca = PCA(n_components=2)
+        # X_pca = pca.fit_transform(X_test)
         scatter = ax2.scatter(
-            X_pca[:, 0],
-            X_pca[:, 1],
+            X_test.iloc[:, x_index],
+            X_test.iloc[:, y_index],
             c=y_pred,
             cmap='bwr',
             alpha=0.6
         )
         # ax2.set_title('Распределение классов (PCA)')
-        ax2.set_xlabel('$PCA_1$')
-        ax2.set_ylabel('$PCA_2$')
+        ax2.set_xlabel(X.columns[x_index])
+        ax2.set_ylabel(X.columns[y_index])
         plt.colorbar(scatter, ax=ax2, label='Класс')
         buf2 = BytesIO()
         plt.savefig(buf2, format='png', bbox_inches='tight')
@@ -274,6 +317,7 @@ async def process_classification(
         return images, None, accuracy
 
     except Exception as e:
+        raise e
         return None, f'❌ Ошибка: {str(e)}', 0.0
 
 
@@ -281,15 +325,18 @@ async def plot_correlation_matrix(df: pd.DataFrame) -> bytes | None:
     '''Строит матрицу корреляции для числовых признаков'''
     try:
         # Выбираем только числовые колонки
-        df['Страна'] = pd.factorize(df['Country'])[0]
-        print(df)
-        country_mapping = df[['Country', 'Страна']].drop_duplicates().reset_index(drop=True)
-        print(country_mapping)
+        # df['Страна'] = pd.factorize(df['Country'])[0]
+        # print(df)
+        # country_mapping = df[['Country', 'Страна']].drop_duplicates().reset_index(drop=True)
+        # print(country_mapping)
 
         # df = preprocess_data(df.select_dtypes(include=[np.number]))
 
         # print(df)
-        numeric_df = df.select_dtypes(include=[np.number])
+        # numeric_df = df.select_dtypes(include=[np.number])
+        # numeric_df = preprocess_online_retail(df)
+
+        numeric_df = df
         if numeric_df.shape[1] < 2:
             return None
 
@@ -305,7 +352,7 @@ async def plot_correlation_matrix(df: pd.DataFrame) -> bytes | None:
             fmt='.2f',
             cmap='Blues',
             ax=ax,
-            annot_kws={"size": 20},
+            annot_kws={"size": 26},
             # mask=np.triu(np.ones_like(corr, dtype=bool))
         )  # Скрываем верхний треугольник
         # ax.set_title('Матрица корреляции признаков')

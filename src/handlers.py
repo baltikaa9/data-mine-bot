@@ -10,6 +10,8 @@ from aiogram.types import Message
 from .keyboards import get_main_menu_kb, get_clustering_methods_kb, get_classification_methods_kb
 from .states.classification import Classification
 from .states.clustering import Clustering
+from .utils import preprocess_customer
+from .utils import preprocess_online_retail
 from .utils import process_csv, plot_clusters_count, process_classification, plot_correlation_matrix
 
 router = Router()
@@ -111,6 +113,14 @@ async def handle_csv(message: Message, state: FSMContext):
 
     try:
         df = pd.read_csv(BytesIO(file_bytes))
+        print(df.head())
+
+        df = preprocess_online_retail(df)
+        print(df.head())
+
+        print(df['Код страны'].nunique())
+        print(df['Код страны'].value_counts())
+
         corr_image = await plot_correlation_matrix(df)
         if corr_image:
             await message.answer_photo(
@@ -180,6 +190,8 @@ async def handle_classification_file(message: Message, state: FSMContext):
 
     try:
         df = pd.read_csv(BytesIO(file_bytes))
+        df = preprocess_customer(df)
+        print(df)
         corr_image = await plot_correlation_matrix(df)
         if corr_image:
             await message.answer_photo(
@@ -187,6 +199,7 @@ async def handle_classification_file(message: Message, state: FSMContext):
                 caption="Матрица корреляции признаков:"
             )
     except Exception as e:
+        raise e
         await message.answer(f"⚠️ Не удалось построить матрицу корреляции: {str(e)}")
 
     image_data, error, accuracy = await process_classification(
