@@ -1,12 +1,10 @@
 from io import BytesIO
-from typing import Any
-from typing import Coroutine
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from scipy.stats import zscore
+from matplotlib.lines import Line2D
 from sklearn.base import BaseEstimator
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.cluster import DBSCAN
@@ -17,12 +15,12 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import confusion_matrix
+from sklearn.metrics import silhouette_score
 from sklearn.mixture import GaussianMixture
 from sklearn.model_selection import train_test_split
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
-from sklearn.metrics import silhouette_score
 
 
 def preprocess_customer(df: pd.DataFrame) -> pd.DataFrame:
@@ -235,8 +233,8 @@ async def process_classification(
         X = df.drop(target_column, axis=1).select_dtypes(include=[np.number])
         y = df[target_column]
 
-        x_index = 0
-        y_index = 1
+        x_index = 1
+        y_index = 2
 
         # # 1. Обработка пропусков
         # initial_rows = X.shape[0]
@@ -277,6 +275,8 @@ async def process_classification(
         y_pred = model.predict(X_test)
         accuracy = accuracy_score(y_test, y_pred)
 
+        unique_classes = np.unique(y_test)
+
         # Создаём два отдельных изображения
         images = []
 
@@ -293,21 +293,135 @@ async def process_classification(
         images.append(buf1.getvalue())
         plt.close(fig1)
 
+        # legend_elements_markers = [
+        #     Line2D([0], [0], marker='o', color='w', markerfacecolor='gray', markersize=10, label='Нет покупки'),
+        #     Line2D([0], [0], marker='D', color='w', markerfacecolor='gray', markersize=10, label='Есть покупка'),
+        #     # и т.д., если будут другие классы:
+        #     # Line2D([0], [0], marker='^',  color='w', markerfacecolor='gray', markersize=10, label='Класс 2 (треугольник)'),
+        # ]
+        #
+        # legend_elements_colors = [
+        #     Line2D([0], [0], marker='o', color='blue', label='Мужчины', markersize=10, linestyle='None'),
+        #     Line2D([0], [0], marker='o', color='red', label='Женщины', markersize=10, linestyle='None'),
+        # ]
+
+        legend = [
+            Line2D([0], [0], marker='o', color='w', markerfacecolor='gray', markersize=10, label='Нет покупки'),
+            Line2D([0], [0], marker='D', color='w', markerfacecolor='gray', markersize=10, label='Есть покупка'),
+            Line2D([0], [0], marker='o', color='blue', label='Мужчины', markersize=10, linestyle='None'),
+            Line2D([0], [0], marker='o', color='red', label='Женщины', markersize=10, linestyle='None'),
+        ]
+
         # 2. Распределение классов через PCA
-        fig2, ax2 = plt.subplots(figsize=(6, 6))
+        fig2, ax2 = plt.subplots(figsize=(10, 10))
         # pca = PCA(n_components=2)
         # X_pca = pca.fit_transform(X_test)
-        scatter = ax2.scatter(
-            X_test.iloc[:, x_index],
-            X_test.iloc[:, y_index],
-            c=y_pred,
-            cmap='bwr',
-            alpha=0.6
-        )
+        # scatter = ax2.scatter(
+        #     X_test.iloc[:, x_index],
+        #     X_test.iloc[:, y_index],
+        #     c=X_test.iloc[:, 0],
+        #     cmap='bwr',
+        #     alpha=0.6
+        # )
+
+        markers = ['o', 'D']
+        ax2.yaxis.set_offset_position('left')
+
+        for i, cls in enumerate(unique_classes):
+            # Индексы точек, принадлежащих текущему классу
+            idx = (y_test == cls)
+            # Выбираем маркер из списка (по кругу, если классов больше, чем маркеров)
+            marker = markers[i % len(markers)]
+            # Строим точки этого класса
+            scatter = ax2.scatter(
+                X_test.iloc[idx.values, x_index],
+                X_test.iloc[idx.values, y_index],
+                c=X_test.iloc[idx.values, 0],
+                marker=marker,
+                cmap='bwr',
+                label=str(cls),
+                alpha=0.7,
+                s=100,
+                # s=30, edgecolors='k',
+            )
+            # ax2.scatter(
+            #     X_test.iloc[idx, x_index],
+            #     X_test.iloc[idx, y_index],
+            #     marker=marker,
+            #     label=str(cls),
+            #     alpha=0.7
+            # )
+        if method == 'svm':
+            X_train_2d = X_train.iloc[:, [x_index, y_index]].values
+            y_train_2d = y_train.values
+
+            # --- 2. Стандартизация
+            scaler = StandardScaler()
+            X_train_2d_scaled = scaler.fit_transform(X_train_2d)
+
+            # --- 3. Обучаем SVM с RBF и небольшим gamma
+            model_2d = SVC(kernel='rbf', C=1.0, gamma=0.1)
+            model_2d.fit(X_train_2d_scaled, y_train_2d)
+
+            # --- 4. Создаём сетку в «чистых» координатах
+            x_min, x_max = X_test.iloc[:, x_index].min() - 1, X_test.iloc[:, x_index].max() + 1
+            y_min, y_max = X_test.iloc[:, y_index].min() - 1, X_test.iloc[:, y_index].max() + 1
+            xx_unscaled, yy_unscaled = np.meshgrid(np.linspace(x_min, x_max, 300),
+                                                   np.linspace(y_min, y_max, 300))
+
+            # --- 5. Масштабируем сетку и предсказываем
+            grid_unscaled = np.c_[xx_unscaled.ravel(), yy_unscaled.ravel()]
+            grid_scaled = scaler.transform(grid_unscaled)
+            Z = model_2d.predict(grid_scaled).reshape(xx_unscaled.shape)
+
+            # --- 6. Рисуем контуры и scatter
+            ax2.contourf(xx_unscaled, yy_unscaled, Z, cmap='bwr', alpha=0.2)
+            ax2.contour(xx_unscaled, yy_unscaled, Z, levels=[0.5], colors='k', linewidths=2)
+
+            # Точки теста:
+            # ax2.scatter(
+            #     X_test.iloc[:, x_index],
+            #     X_test.iloc[:, y_index],
+            #     c=y_test,
+            #     cmap='bwr',
+            #     s=100, edgecolors='k', alpha=0.7
+            # )
+
+            # Опорные векторы (в не_масштабированном виде — надо обратно применить inverse_transform)
+            # sv_scaled = model_2d.support_vectors_
+            # sv_unscaled = scaler.inverse_transform(sv_scaled)
+            # ax2.scatter(
+            #     sv_unscaled[:, 0],
+            #     sv_unscaled[:, 1],
+            #     facecolors='none', edgecolors='gold',
+            #     s=120, linewidths=1.5, label='Опорные векторы'
+            # )
+
+            ax2.set_xlabel(X.columns[x_index])
+            ax2.set_ylabel(X.columns[y_index])
+            ax2.legend(framealpha=0)
+
         # ax2.set_title('Распределение классов (PCA)')
         ax2.set_xlabel(X.columns[x_index])
         ax2.set_ylabel(X.columns[y_index])
-        plt.colorbar(scatter, ax=ax2, label='Класс')
+        ax2.ticklabel_format(axis='y', style='sci', scilimits=(3, 3))
+
+        # ax2.legend()
+        first_legend = ax2.legend(
+            handles=legend,
+            bbox_to_anchor=(0., 1.02, 1., .102),
+            loc='lower left',
+            ncols=2,
+            mode="expand",
+            borderaxespad=0.,
+            framealpha=0,
+        )
+        # Вторую легенду рисуем рядом: передаём handles, но указываем bbox_to_anchor, чтобы не наслаивалось
+        # second_legend = ax2.legend(handles=legend_elements_colors, title='Цвет маркера → пол',
+        #                           loc='upper right', frameon=True)
+        #
+        # ax2.add_artist(first_legend)
+        # plt.colorbar(scatter, ax=ax2, label='Пол')
         buf2 = BytesIO()
         plt.savefig(buf2, format='png', bbox_inches='tight')
         buf2.seek(0)

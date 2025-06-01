@@ -12,7 +12,8 @@ from src.handlers import router
 
 font = {
     'family': 'Times New Roman',
-    'size': 26
+    'size': 26,
+    'weight': 'bold',
 }
 
 matplotlib.rc('font', **font)
