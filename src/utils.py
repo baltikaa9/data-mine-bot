@@ -124,26 +124,26 @@ async def process_csv(
         # ax2: plt.Axes = fig.add_subplot(122)
 
         # PCA для многомерных данных
-        if X.shape[1] > 2:
-            pca = PCA(n_components=2)
-            X_pca: np.ndarray = pca.fit_transform(X)
+        # if X.shape[1] > 2:
+        #     pca = PCA(n_components=2)
+        #     X_pca: np.ndarray = pca.fit_transform(X)
+        #
+        #     # Для Component 1
+        #     ax.set_xlabel('$PCA_1$')
+        #
+        #     # Для Component 2
+        #     ax.set_ylabel('$PCA_2$')
+        # else:
+        #     X_pca = X
+        #     ax.set_xlabel(df.columns[0])
+        #     ax.set_ylabel(df.columns[1] if X.shape[1] > 1 else '')
 
-            # Для Component 1
-            ax.set_xlabel('$PCA_1$')
+        ax.set_xlabel(df.columns[x_index])
+        ax.set_ylabel(df.columns[y_index])
 
-            # Для Component 2
-            ax.set_ylabel('$PCA_2$')
-        else:
-            X_pca = X
-            ax.set_xlabel(df.columns[0])
-            ax.set_ylabel(df.columns[1] if X.shape[1] > 1 else '')
-
-        # ax.set_xlabel(df.columns[x_index])
-        # ax.set_ylabel(df.columns[y_index])
-
-        # scatter = ax.scatter(X[:, x_index], X[:, y_index], c=clusters, cmap='viridis', alpha=0.6)
-        # ax.legend(*scatter.legend_elements(), title='Кластеры', bbox_to_anchor=(0., 1.02, 1., .102), loc='lower left',
-        #           ncols=4, mode="expand", borderaxespad=0.)
+        scatter = ax.scatter(X[:, x_index], X[:, y_index], c=clusters, cmap='viridis', alpha=0.6)
+        ax.legend(*scatter.legend_elements(), title='Кластеры', bbox_to_anchor=(0., 1.02, 1., .102), loc='lower left',
+                  ncols=4, mode="expand", borderaxespad=0.)
 
         # ax1.set_xlabel(proc_df.columns[0])
         # ax1.set_ylabel(proc_df.columns[1])
@@ -159,9 +159,9 @@ async def process_csv(
         # ax2.legend(*scatter2.legend_elements(), title='Кластеры', bbox_to_anchor=(0., 1.02, 1., .102), loc='lower left',
         #            ncols=4, mode="expand", borderaxespad=0.)
 
-        scatter = ax.scatter(X_pca[:, 0], X_pca[:, 1], c=clusters, cmap='viridis', alpha=0.6)
-        ax.legend(*scatter.legend_elements(), title='Кластеры', bbox_to_anchor=(0., 1.02, 1., .102), loc='lower left',
-                   ncols=4, mode="expand", borderaxespad=0.)
+        # scatter = ax.scatter(X_pca[:, 0], X_pca[:, 1], c=clusters, cmap='viridis', alpha=0.6)
+        # ax.legend(*scatter.legend_elements(), title='Кластеры', bbox_to_anchor=(0., 1.02, 1., .102), loc='lower left',
+        #            ncols=4, mode="expand", borderaxespad=0.)
 
         # Конвертация в байты
         buf: BytesIO = BytesIO()
@@ -188,7 +188,8 @@ def plot_clusters_count(df: pd.DataFrame):
 
         # Визуализация
         fig, ax = plt.subplots(figsize=(10, 6))
-        ax.plot(ks, bic, marker='o')
+        print(ks, bic)
+        ax.plot(ks, bic, marker='o',linewidth=7.0, markersize=12)
         ax.set_xlabel('Количество кластеров')
         ax.set_ylabel('БИК')
         ax.set_title('Метод локтя для определения оптимального k')
@@ -307,10 +308,10 @@ async def process_classification(
         # ]
 
         legend = [
-            Line2D([0], [0], marker='o', color='w', markerfacecolor='gray', markersize=10, label='Нет покупки'),
-            Line2D([0], [0], marker='D', color='w', markerfacecolor='gray', markersize=10, label='Есть покупка'),
-            Line2D([0], [0], marker='o', color='blue', label='Мужчины', markersize=10, linestyle='None'),
-            Line2D([0], [0], marker='o', color='red', label='Женщины', markersize=10, linestyle='None'),
+            Line2D([0], [0], marker='o', color='w', markerfacecolor='gray', markersize=10, label='Женщины'),
+            Line2D([0], [0], marker='D', color='w', markerfacecolor='gray', markersize=10, label='Мужчины'),
+            Line2D([0], [0], marker='o', color='blue', label='Есть покупка', markersize=10, linestyle='None'),
+            Line2D([0], [0], marker='o', color='red', label='Нет покупки', markersize=10, linestyle='None'),
         ]
 
         # 2. Распределение классов через PCA
@@ -328,22 +329,33 @@ async def process_classification(
         markers = ['o', 'D']
         ax2.yaxis.set_offset_position('left')
 
-        for i, cls in enumerate(unique_classes):
+        genders = X_test.iloc[:, 0].unique()
+        colors = ['red', 'blue']
+
+        for i, gender in enumerate(genders):
             # Индексы точек, принадлежащих текущему классу
-            idx = (y_test == cls)
+            # idx = (y_test == cls)
             # Выбираем маркер из списка (по кругу, если классов больше, чем маркеров)
             marker = markers[i % len(markers)]
+            gender_mask = (X_test.iloc[:, 0] == gender)
             # Строим точки этого класса
-            scatter = ax2.scatter(
-                X_test.iloc[idx.values, x_index],
-                X_test.iloc[idx.values, y_index],
-                c=X_test.iloc[idx.values, 0],
-                marker=marker,
-                cmap='bwr',
-                label=str(cls),
-                alpha=0.7,
-                s=100,
-                # s=30, edgecolors='k',
+            for j, cls in enumerate(unique_classes):
+                color = colors[j % len(colors)]
+                class_mask = (y_test == cls)
+
+                # Комбинированная маска
+                idx = gender_mask & class_mask
+
+                scatter = ax2.scatter(
+                    X_test.iloc[idx.values, x_index],
+                    X_test.iloc[idx.values, y_index],
+                    c=color,
+                    marker=marker,
+                    cmap='bwr',
+                    label=str(cls),
+                    alpha=0.7,
+                    s=100,
+                    # s=30, edgecolors='k',
             )
             # ax2.scatter(
             #     X_test.iloc[idx, x_index],
@@ -472,6 +484,7 @@ async def plot_correlation_matrix(df: pd.DataFrame) -> bytes | None:
         )  # Скрываем верхний треугольник
         # ax.set_title('Матрица корреляции признаков')
         plt.xticks(rotation=45)
+        plt.yticks(rotation=45)
         plt.tight_layout()
 
         # Конвертация в байты
