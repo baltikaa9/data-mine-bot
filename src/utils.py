@@ -177,8 +177,8 @@ async def process_csv(
 
 def plot_clusters_count(df: pd.DataFrame):
     try:
-        numeric_cols = df.select_dtypes(include=['int64', 'float64']).columns
-        df = preprocess_data(df, numeric_cols)
+        # numeric_cols = df.select_dtypes(include=['int64', 'float64']).columns
+        # df = preprocess_data(df, numeric_cols)
         X = df.select_dtypes(include=[np.number]).values
 
         if X.shape[0] < 3:
@@ -190,8 +190,9 @@ def plot_clusters_count(df: pd.DataFrame):
         fig, ax = plt.subplots(figsize=(10, 6))
         ax.plot(ks, bic, marker='o')
         ax.set_xlabel('Количество кластеров')
-        ax.set_ylabel('BIC')
+        ax.set_ylabel('БИК')
         ax.set_title('Метод локтя для определения оптимального k')
+        ax.set_xticks([i for i in range(1, 10)])
 
         buf = BytesIO()
         plt.savefig(buf, format='png', bbox_inches='tight')

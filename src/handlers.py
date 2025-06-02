@@ -86,8 +86,11 @@ async def handle_auto_clusters_file(message: Message, state: FSMContext):
     file = await message.bot.download(message.document)
     file_bytes = file.read()
 
+    df = preprocess_online_retail(pd.read_csv(BytesIO(file_bytes)))
+
+
     # Строим график методом локтя
-    image_data, error = plot_clusters_count(pd.read_csv(BytesIO(file_bytes)))
+    image_data, error = plot_clusters_count(df)
 
     if error:
         await message.answer(error, reply_markup=get_main_menu_kb())
