@@ -1,6 +1,6 @@
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 
-def get_main_menu_kb():
+def get_main_menu_kb() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text='Кластеризация')],
@@ -10,7 +10,7 @@ def get_main_menu_kb():
     )
 
 
-def get_clustering_methods_kb():
+def get_clustering_methods_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
@@ -28,7 +28,25 @@ def get_clustering_methods_kb():
         ]
     )
 
-def get_classification_methods_kb():
+def get_online_retail() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text='Загрузить набор данных "Online Retail"', callback_data='online_retail'),
+            ]
+        ]
+    )
+
+def get_customer_behavior() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text='Загрузить набор данных "Customer Behavior"', callback_data='customer_behavior'),
+            ]
+        ]
+    )
+
+def get_classification_methods_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text='Логистическая регрессия', callback_data='logreg'),

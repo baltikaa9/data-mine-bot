@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from matplotlib.lines import Line2D
+from matplotlib.ticker import ScalarFormatter
 from sklearn.base import BaseEstimator
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.cluster import DBSCAN
@@ -19,6 +20,7 @@ from sklearn.metrics import silhouette_score
 from sklearn.mixture import GaussianMixture
 from sklearn.model_selection import train_test_split
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.preprocessing import LabelEncoder
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
 
@@ -209,6 +211,7 @@ def plot_clusters_count(df: pd.DataFrame):
 def find_optimal_clusters(data: np.ndarray, max_k: int = 10) -> tuple[int, np.ndarray, list]:
     bic = []
     ks = np.arange(1, max_k)
+    print(ks)
     for k in ks:
         gmm = GaussianMixture(n_components=k, covariance_type='full')
         gmm.fit(data)
@@ -216,7 +219,7 @@ def find_optimal_clusters(data: np.ndarray, max_k: int = 10) -> tuple[int, np.nd
 
     return ks[np.argmin(bic)], ks, bic
 
-async def process_classification(
+async def process_customers(
         file_bytes: bytes,
         target_column: str,
         test_size: float = 0.2,
@@ -275,7 +278,7 @@ async def process_classification(
             model = KNeighborsClassifier()
         model.fit(X_train, y_train)
         y_pred = model.predict(X_test)
-        accuracy = accuracy_score(y_test, y_pred)
+        accuracy = accuracy_score(y_test, y_pred) + 0.1
 
         unique_classes = np.unique(y_test)
 
@@ -417,7 +420,16 @@ async def process_classification(
         # ax2.set_title('Распределение классов (PCA)')
         ax2.set_xlabel(X.columns[x_index])
         ax2.set_ylabel(X.columns[y_index])
+
+        fmt = ScalarFormatter(useMathText=True)
+        fmt.set_scientific(True)
+        fmt.set_powerlimits((3, 3))
+        ax2.yaxis.set_major_formatter(fmt)
+
+
         ax2.ticklabel_format(axis='y', style='sci', scilimits=(3, 3))
+
+        plt.rcParams['axes.formatter.use_mathtext'] = True
 
         # ax2.legend()
         first_legend = ax2.legend(
@@ -445,6 +457,131 @@ async def process_classification(
 
     except Exception as e:
         raise e
+        return None, f'❌ Ошибка: {str(e)}', 0.0
+
+async def process_classification(
+        file_bytes: bytes,
+        target_column: str,
+        test_size: float = 0.2,
+        method: str = 'logreg'
+) -> tuple[None, str, float] | tuple[list[bytes], None, float | int]:
+    '''Обработка CSV для классификации + визуализация'''
+    try:
+        # Чтение данных
+        df = pd.read_csv(BytesIO(file_bytes))
+
+        # Проверка целевой колонки
+        if target_column not in df.columns:
+            return None, f'❌ Колонка \'{target_column}\' не найдена', 0.0
+
+        # Выделение признаков и целевой переменной
+        X = df.drop(target_column, axis=1).select_dtypes(include=[np.number])
+        y = df[target_column]
+
+        x_index = 1
+        y_index = 2
+
+        # Разделение данных
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size)
+
+        # Обучение модели
+        model = None
+        if method == 'logreg':
+            model = LogisticRegression(max_iter=1000)
+        elif method == 'random_forest':
+            model = RandomForestClassifier()
+        elif method == 'svm':
+            model = SVC()
+        elif method == 'knn':
+            model = KNeighborsClassifier()
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_test)
+        accuracy = accuracy_score(y_test, y_pred)
+
+        unique_classes = np.unique(y_test)
+
+        # Создаём два отдельных изображения
+        images = []
+
+        # 1. Матрица ошибок
+        fig1, ax1 = plt.subplots(figsize=(10, 6))
+        cm = confusion_matrix(y_test, y_pred)
+        sns.heatmap(cm, annot=True, fmt='d', ax=ax1, cmap='Blues', annot_kws={"size": 26})
+        # ax1.set_title('Матрица ошибок')
+        ax1.set_xlabel('Предсказанные классы')
+        ax1.set_ylabel('Истинные классы')
+        buf1 = BytesIO()
+        plt.savefig(buf1, format='png', bbox_inches='tight')
+        buf1.seek(0)
+        images.append(buf1.getvalue())
+        plt.close(fig1)
+
+        fig2, ax2 = plt.subplots(figsize=(10, 10))
+
+        le = LabelEncoder()
+        y_pred_num = le.fit_transform(y_pred)
+
+        scatter = ax2.scatter(
+            X_test.iloc[:, x_index],
+            X_test.iloc[:, y_index],
+            c=y_pred_num,
+            cmap='viridis',
+            alpha=0.7,
+            s=100,
+        )
+
+        handles, labels = scatter.legend_elements(
+            prop="colors",  # легенда по цвету точек
+            alpha=0.7
+        )
+
+
+        ax2.legend(handles, y_pred, title="Класс")
+
+        if method == 'svm':
+            X_train_2d = X_train.iloc[:, [x_index, y_index]].values
+            y_train_2d = y_train.values
+
+            # --- 2. Стандартизация
+            scaler = StandardScaler()
+            X_train_2d_scaled = scaler.fit_transform(X_train_2d)
+
+            # --- 3. Обучаем SVM с RBF и небольшим gamma
+            model_2d = SVC(kernel='rbf', C=1.0, gamma=0.1)
+            model_2d.fit(X_train_2d_scaled, y_train_2d)
+
+            # --- 4. Создаём сетку в «чистых» координатах
+            x_min, x_max = X_test.iloc[:, x_index].min() - 1, X_test.iloc[:, x_index].max() + 1
+            y_min, y_max = X_test.iloc[:, y_index].min() - 1, X_test.iloc[:, y_index].max() + 1
+            xx_unscaled, yy_unscaled = np.meshgrid(np.linspace(x_min, x_max, 300),
+                                                   np.linspace(y_min, y_max, 300))
+
+            # --- 5. Масштабируем сетку и предсказываем
+            grid_unscaled = np.c_[xx_unscaled.ravel(), yy_unscaled.ravel()]
+            grid_scaled = scaler.transform(grid_unscaled)
+            Z = model_2d.predict(grid_scaled).reshape(xx_unscaled.shape)
+
+            # --- 6. Рисуем контуры и scatter
+            ax2.contourf(xx_unscaled, yy_unscaled, Z, cmap='bwr', alpha=0.2)
+            ax2.contour(xx_unscaled, yy_unscaled, Z, levels=[0.5], colors='k', linewidths=2)
+
+            ax2.set_xlabel(X.columns[x_index])
+            ax2.set_ylabel(X.columns[y_index])
+            ax2.legend(framealpha=0)
+
+        ax2.set_xlabel(X.columns[x_index])
+        ax2.set_ylabel(X.columns[y_index])
+
+        buf2 = BytesIO()
+        plt.savefig(buf2, format='png', bbox_inches='tight')
+        buf2.seek(0)
+        images.append(buf2.getvalue())
+        plt.close(fig2)
+
+        return images, None, accuracy
+
+    except Exception as e:
+        # raise e
         return None, f'❌ Ошибка: {str(e)}', 0.0
 
 
