@@ -400,7 +400,7 @@ async def process_customers(
             Z = model_2d.predict(grid_scaled).reshape(xx_unscaled.shape)
 
             # --- 6. Рисуем контуры и scatter
-            ax2.contourf(xx_unscaled, yy_unscaled, Z, cmap='bwr', alpha=0.2)
+            # ax2.contourf(xx_unscaled, yy_unscaled, Z, cmap='bwr', alpha=0.2)
             ax2.contour(xx_unscaled, yy_unscaled, Z, levels=[0.5], colors='k', linewidths=2)
 
             # Точки теста:
@@ -571,7 +571,7 @@ async def process_classification(
             Z = model_2d.predict(grid_scaled).reshape(xx_unscaled.shape)
 
             # --- 6. Рисуем контуры и scatter
-            ax2.contourf(xx_unscaled, yy_unscaled, Z, cmap='bwr', alpha=0.2)
+            # ax2.contourf(xx_unscaled, yy_unscaled, Z, cmap='bwr', alpha=0.2)
             ax2.contour(xx_unscaled, yy_unscaled, Z, levels=[0.5], colors='k', linewidths=2)
 
             ax2.set_xlabel(X.columns[x_index])
