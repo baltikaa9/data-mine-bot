@@ -197,6 +197,15 @@ def plot_clusters_count(df: pd.DataFrame):
         ax.set_title('Метод локтя для определения оптимального k')
         ax.set_xticks([i for i in range(1, 10)])
 
+        fmt = ScalarFormatter(useMathText=True)
+        fmt.set_scientific(True)
+        fmt.set_powerlimits((3, 3))
+        ax.yaxis.set_major_formatter(fmt)
+
+
+        ax.ticklabel_format(axis='y', style='sci', scilimits=(3, 3))
+
+
         buf = BytesIO()
         plt.savefig(buf, format='png', bbox_inches='tight')
         buf.seek(0)
