@@ -117,10 +117,11 @@ async def process_csv(
         silhouette = silhouette_score(X, clusters)
 
         x_index = 0
-        y_index = 1
+        y_index = 3
 
         # Визуализация
         fig: plt.Figure = plt.figure(figsize=(5, 5))
+        fig.subplots_adjust(right=0.85)
         ax: plt.Axes = fig.add_subplot(111)
         # ax1: plt.Axes = fig.add_subplot(121)
         # ax2: plt.Axes = fig.add_subplot(122)
@@ -144,8 +145,7 @@ async def process_csv(
         ax.set_ylabel(df.columns[y_index])
 
         scatter = ax.scatter(X[:, x_index], X[:, y_index], c=clusters, cmap='viridis', alpha=0.6)
-        ax.legend(*scatter.legend_elements(), title='Кластеры', bbox_to_anchor=(0., 1.02, 1., .102), loc='lower left',
-                  ncols=4, mode="expand", borderaxespad=0.)
+        ax.legend(*scatter.legend_elements(), title='', bbox_to_anchor=(1.02, 0.5), loc='center left', borderaxespad=0., ncol=1)
 
         # ax1.set_xlabel(proc_df.columns[0])
         # ax1.set_ylabel(proc_df.columns[1])
