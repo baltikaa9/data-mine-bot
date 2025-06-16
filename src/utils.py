@@ -320,8 +320,8 @@ async def process_customers(
         # ]
 
         legend = [
-            Line2D([0], [0], marker='o', color='w', markerfacecolor='gray', markersize=10, label='Женщины'),
-            Line2D([0], [0], marker='D', color='w', markerfacecolor='gray', markersize=10, label='Мужчины'),
+            Line2D([0], [0], marker='o', color='yellow', markersize=10, label='Женщины', linestyle='None'),
+            Line2D([0], [0], marker='o', color='black', markersize=10, label='Мужчины', linestyle='None'),
             Line2D([0], [0], marker='o', color='blue', label='Есть покупка', markersize=10, linestyle='None'),
             Line2D([0], [0], marker='o', color='red', label='Нет покупки', markersize=10, linestyle='None'),
         ]
@@ -338,37 +338,14 @@ async def process_customers(
         #     alpha=0.6
         # )
 
-        markers = ['o', 'D']
+        # markers = ['o', 'D']
+        markers = ['yellow', 'black']
         ax2.yaxis.set_offset_position('left')
 
         genders = X_test.iloc[:, 0].unique()
         colors = ['red', 'blue']
 
-        for i, gender in enumerate(genders):
-            # Индексы точек, принадлежащих текущему классу
-            # idx = (y_test == cls)
-            # Выбираем маркер из списка (по кругу, если классов больше, чем маркеров)
-            marker = markers[i % len(markers)]
-            gender_mask = (X_test.iloc[:, 0] == gender)
-            # Строим точки этого класса
-            for j, cls in enumerate(unique_classes):
-                color = colors[j % len(colors)]
-                class_mask = (y_test == cls)
 
-                # Комбинированная маска
-                idx = gender_mask & class_mask
-
-                scatter = ax2.scatter(
-                    X_test.iloc[idx.values, x_index],
-                    X_test.iloc[idx.values, y_index],
-                    c=color,
-                    marker=marker,
-                    cmap='bwr',
-                    label=str(cls),
-                    alpha=0.7,
-                    s=100,
-                    # s=30, edgecolors='k',
-            )
             # ax2.scatter(
             #     X_test.iloc[idx, x_index],
             #     X_test.iloc[idx, y_index],
@@ -400,7 +377,7 @@ async def process_customers(
             Z = model_2d.predict(grid_scaled).reshape(xx_unscaled.shape)
 
             # --- 6. Рисуем контуры и scatter
-            # ax2.contourf(xx_unscaled, yy_unscaled, Z, cmap='bwr', alpha=0.2)
+            ax2.contourf(xx_unscaled, yy_unscaled, Z, cmap='bwr_r', alpha=0.2)
             ax2.contour(xx_unscaled, yy_unscaled, Z, levels=[0.5], colors='k', linewidths=2)
 
             # Точки теста:
@@ -425,6 +402,35 @@ async def process_customers(
             ax2.set_xlabel(X.columns[x_index])
             ax2.set_ylabel(X.columns[y_index])
             ax2.legend(framealpha=0)
+
+        for i, gender in enumerate(genders):
+            # Индексы точек, принадлежащих текущему классу
+            # idx = (y_test == cls)
+            # Выбираем маркер из списка (по кругу, если классов больше, чем маркеров)
+            marker = markers[i % len(markers)]
+            gender_mask = (X_test.iloc[:, 0] == gender)
+            print(gender_mask)
+            # Строим точки этого класса
+            # for j, cls in enumerate(unique_classes):
+            #     color = colors[j % len(colors)]
+            #     class_mask = (y_test == cls)
+
+                # Комбинированная маска
+                # idx = gender_mask & class_mask
+            idx = gender_mask
+
+            scatter = ax2.scatter(
+                X_test.iloc[idx.values, x_index],
+                X_test.iloc[idx.values, y_index],
+                # c=color,
+                # marker=marker,
+                c=marker,
+                cmap='bwr',
+                # label=str(cls),
+                # alpha=0.7,
+                s=100,
+                # s=30, edgecolors='k',
+        )
 
         # ax2.set_title('Распределение классов (PCA)')
         ax2.set_xlabel(X.columns[x_index])
